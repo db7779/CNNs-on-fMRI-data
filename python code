@@ -1,0 +1,114 @@
+import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy.io as sio
+import os
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense, Flatten, Conv3D, MaxPooling3D, Dropout
+from tensorflow.keras.utils import to_categorical
+from keras.optimizers import Adam, SGD
+
+''' if on Google Colab:
+# select Runtime-> Change runtime type-> GPU
+# testing if we are now using gpu
+tf.test.gpu_device_name()
+!nvidia-smi
+'''
+
+# loading the data
+vols=sio.loadmat(r'~\sensorimotor_4D_sample.mat')
+
+# some data exploration
+print(type(vols))
+print(vols.keys())
+print(vols['y_train'].shape,vols['y_test'].shape)
+print(vols['X_train'].shape,vols['X_test'].shape)
+# first dimension is number of 3D fMRI volumes, remaining dimensions are BOLD signal associated with xyz coordinates
+
+for i in [0,1,2,3]:
+    print(np.sum(vols['y_train'][0]==i))
+# balanced output, expected due to blocked design if training/testing dataset were done as mentioned (leave-on-out subject)
+
+# preprocessing and creating test and training sets
+x_train,x_test,y_train,y_test=vols['X_train'],vols['X_test'],vols['y_train'],vols['y_test']
+n_classes=4
+# data normalization
+x_train=(x_train-np.min(x_train))/(np.max(x_train)-np.min(x_train))
+x_test=(x_test-np.min(x_test))/(np.max(x_test)-np.min(x_test))
+# 1D array for labels
+y_train=y_train.flatten()
+y_test=y_test.flatten()
+
+# plot of MRI image in a specific timepoint and plane
+plt.imshow(x_train[0,:,:,0])
+plt.show()
+
+### model preparation and implementation
+y_train = to_categorical(y_train)
+y_test = to_categorical(y_test)
+filters=8
+x_train=np.array(x_train).reshape(-1, 53, 63, 46, 1)
+data_shape=tuple(x_train.shape[1:])
+
+model = Sequential()
+model.add(Conv3D(filters, (7, 7, 7), activation='relu', input_shape=data_shape))
+#model.add(BatchNormalization())
+model.add(MaxPooling3D(pool_size=(2, 2, 2)))
+model.add(Conv3D(filters * 2, (5,5,5), activation='relu'))
+#model.add(BatchNormalization())
+model.add(MaxPooling3D(pool_size=(2, 2, 2)))
+model.add(Conv3D(filters * 4, (3,3,3), activation='relu'))
+#model.add(BatchNormalization())
+model.add(MaxPooling3D(pool_size=(2, 2, 2)))
+model.add(Flatten())
+model.add(Dense(1024, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(2048, activation='relu'))
+model.add(Dropout(0.5))
+model.add(Dense(n_classes, activation='softmax'))
+# optimizer
+learning_rate = 1e-5
+adam = Adam(lr=learning_rate)
+sgd = SGD(lr=learning_rate)
+
+model.compile(loss='categorical_crossentropy',
+              optimizer=adam, # swap out for sgd 
+              metrics=['accuracy'])
+
+model.summary()
+
+# epochs=1 just to check if everything runs okay. If no errors occur we can set epochs to desired value (or create a loop for different epoch values and select the best model)
+model.fit(x_train, y_train, epochs=1, batch_size=50)
+
+# model evaluation
+fig = plt.figure(figsize=(10, 4))
+epoch = np.arange(nEpochs) + 1
+fontsize = 16
+plt.plot(epoch, fit.history['acc'], marker="o", linewidth=2,
+         color="steelblue", label="accuracy")
+plt.plot(epoch, fit.history['loss'], marker="o", linewidth=2,
+         color="orange", label="loss")
+plt.xlabel('epoch', fontsize=fontsize)
+plt.xticks(fontsize=fontsize)
+plt.yticks(fontsize=fontsize)
+plt.legend(frameon=False, fontsize=16);
+
+evaluation = model.evaluate(X_test, y_test)
+print('Loss in Test set:      %.02f' % (evaluation[0]))
+print('Accuracy in Test set:  %.02f' % (evaluation[1] * 100))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
